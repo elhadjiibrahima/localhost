@@ -1,22 +1,45 @@
 extern crate libc;
 
 use libc::{
-    epoll_create1, epoll_ctl, epoll_wait, socket, bind, listen, accept, 
-    EPOLLIN, EPOLL_CLOEXEC, EPOLL_CTL_ADD, SOCK_STREAM, AF_INET, 
-    sockaddr_in, sockaddr, sockaddr_in as sockaddr_in_t,
+    epoll_create1, epoll_ctl, epoll_wait, socket, bind, listen, accept,
+    EPOLLIN, EPOLL_CLOEXEC, EPOLL_CTL_ADD, SOCK_STREAM, AF_INET,
+    sockaddr, sockaddr_in, sockaddr_in as sockaddr_in_t,
 };
+use clap::{App, Arg};
 use std::fs::File;
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::mem;
 use std::net::{SocketAddr, IpAddr};
 use std::path::Path;
 use std::ptr;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 const MAX_EVENTS: usize = 10;
-const PORT: u16 = 8080;
+const CGI_PATH: &str = "/cgi-bin/";
 
 fn main() -> io::Result<()> {
+    // Parse command line arguments
+    let matches = App::new("localhosh")
+        .version("1.0")
+        .author("Your Name")
+        .about("HTTP server")
+        .arg(
+            Arg::new("port")
+                .short('p')
+                .long("port")
+                .default_value("8080")
+                .takes_value(true)
+                .help("Port to listen on"),
+        )
+        .get_matches();
+
+    let port: u16 = matches
+        .value_of_t("port")
+        .unwrap_or_else(|e| e.exit());
+
+    // Adresse et port de serveur
+    let address = "0.0.0.0";
+
     unsafe {
         // Crée un descripteur epoll
         let epoll_fd = epoll_create1(EPOLL_CLOEXEC);
@@ -31,10 +54,10 @@ fn main() -> io::Result<()> {
         }
 
         // Configure l'adresse du serveur
-        let addr = SocketAddr::new("0.0.0.0".parse().unwrap(), PORT);
+        let addr = SocketAddr::new(address.parse().unwrap(), port);
         let mut sockaddr: sockaddr_in_t = mem::zeroed();
         sockaddr.sin_family = AF_INET as u16;
-        sockaddr.sin_port = PORT.to_be();
+        sockaddr.sin_port = port.to_be();
         sockaddr.sin_addr.s_addr = match addr.ip() {
             IpAddr::V4(ipv4) => u32::from_be_bytes(ipv4.octets()),
             IpAddr::V6(_) => panic!("IPv6 not supported"),
@@ -91,11 +114,15 @@ fn main() -> io::Result<()> {
                     let (method, path) = parse_http_request(request);
 
                     // Gère la requête
-                    let response = match method.as_str() {
-                        "GET" => handle_get_request(&path),
-                        "POST" => handle_post_request(request),
-                        "DELETE" => handle_delete_request(&path),
-                        _ => format_http_response("405", "Method Not Allowed", "Method not allowed"),
+                    let response = if path.starts_with(CGI_PATH) {
+                        handle_cgi_request(&path)
+                    } else {
+                        match method.as_str() {
+                            "GET" => handle_get_request(&path),
+                            "POST" => handle_post_request(request),
+                            "DELETE" => handle_delete_request(&path),
+                            _ => format_http_response("405", "Method Not Allowed", "Method not allowed"),
+                        }
                     };
 
                     // Envoie la réponse HTTP
@@ -134,9 +161,6 @@ fn handle_get_request(path: &str) -> String {
     // Supprime le slash initial du chemin pour faciliter les recherches
     let path_trimmed = path.trim_start_matches('/');
 
-    // Liste des extensions possibles
-    let possible_extensions = ["html", "htm", "py", "php"];
-
     // Liste des variantes de chemins à essayer
     let possible_paths = vec![
         path_trimmed.to_string(),
@@ -147,10 +171,6 @@ fn handle_get_request(path: &str) -> String {
     ];
 
     for path in possible_paths {
-        if path.ends_with(".py") || path.ends_with(".php") {
-            return execute_cgi(&path);
-        }
-
         let body = match read_file(&path) {
             Ok(content) => content,
             Err(_) => continue,
@@ -184,23 +204,22 @@ fn handle_delete_request(path: &str) -> String {
     format_http_response("200", "OK", &body)
 }
 
-// Fonction pour exécuter un script CGI
-fn execute_cgi(file_path: &str) -> String {
-    let path = Path::new("public").join(file_path.trim_start_matches('/'));
+// Fonction pour gérer les requêtes CGI
+fn handle_cgi_request(path: &str) -> String {
+    // Enlève le préfixe CGI_PATH pour obtenir le chemin du script
+    let script_path = path.trim_start_matches(CGI_PATH);
 
-    let output = Command::new("python3") // Changez "python3" en "php" pour les fichiers .php
-        .arg(&path)
-        .env("PATH_INFO", file_path)
-        .stdin(Stdio::null())
+    // Exécute le script CGI
+    let output = Command::new("python3")
+        .arg(script_path)
         .output()
         .expect("Failed to execute CGI script");
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    if !stderr.is_empty() {
-        eprintln!("CGI Error: {}", stderr);
+    // Gère la sortie du script CGI
+    if !output.status.success() {
+        return format_http_response("500", "Internal Server Error", "CGI script failed");
     }
 
-    format_http_response("200", "OK", &stdout)
+    // Formate la réponse avec la sortie du script CGI
+    format_http_response("200", "OK", &String::from_utf8_lossy(&output.stdout))
 }
