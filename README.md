@@ -77,4 +77,4 @@ Pour tester un script CGI en Python :
 - **Erreur "No such file or directory"** : Vérifiez les chemins des fichiers et les permissions des répertoires.
 
 ## Authors
-(ediallo)[https://learn.zone01dakar.sn/git/ediallo] 
+[ediallo](https://learn.zone01dakar.sn/git/ediallo) 
