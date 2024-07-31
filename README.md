@@ -76,10 +76,5 @@ Pour tester un script CGI en Python :
 - **Erreur "CGI script not found"** : Assurez-vous que le script CGI est dans le bon répertoire et qu'il est exécutable.
 - **Erreur "No such file or directory"** : Vérifiez les chemins des fichiers et les permissions des répertoires.
 
-## Contribuer
-
-Les contributions sont les bienvenues ! Veuillez soumettre un [issue](https://github.com/votre-repo/issues) ou un [pull request](https://github.com/votre-repo/pulls) pour toute amélioration.
-
-## Licence
-
-Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus d'informations.
+## Authors
+(ediallo)[https://learn.zone01dakar.sn/git/ediallo] 
