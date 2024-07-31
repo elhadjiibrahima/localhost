@@ -19,7 +19,7 @@ Localhosh est un serveur HTTP simple en Rust qui prend en charge les requêtes H
 Clonez le dépôt et construisez le projet avec Cargo :
 
 ```bash
-git clone <URL_DU_REPOSITORY>
+git clone https://learn.zone01dakar.sn/git/ediallo/localhost
 cd localhosh
 cargo build
 ```
