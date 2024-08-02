@@ -16,4 +16,9 @@ _A single threaded HTTP server written in Rust as a part of the grit:lab curricu
 - Server logs
 - Dynamic default error page
 
+### Quick start guide
+1. Install Rust
+2. run `cargo run` in the root of this directory
+
+
 
